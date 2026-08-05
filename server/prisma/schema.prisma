@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  invoices     Invoice[]
+
+  @@map("users")
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  userId          String
+  vendorName      String?
+  invoiceNumber   String?
+  invoiceDate     DateTime?
+  dueDate         DateTime?
+  currency        String?
+  subtotal        Decimal?      @db.Decimal(12, 2)
+  tax             Decimal?      @db.Decimal(12, 2)
+  discount        Decimal?      @db.Decimal(12, 2)
+  shipping        Decimal?      @db.Decimal(12, 2)
+  total           Decimal?      @db.Decimal(12, 2)
+  paymentMethod   String?
+  gstNumber       String?
+  customerName    String?
+  customerAddress String?
+  vendorAddress   String?
+  originalFile    String
+  sourceHash      String?
+  aiConfidence    Json?
+  createdAt       DateTime      @default(now())
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items InvoiceItem[]
+
+  @@index([userId, vendorName])
+  @@index([userId, invoiceDate])
+  @@unique([userId, sourceHash])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String?
+  quantity    Decimal? @db.Decimal(12, 2)
+  unitPrice   Decimal? @db.Decimal(12, 2)
+  tax         Decimal? @db.Decimal(12, 2)
+  amount      Decimal? @db.Decimal(12, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
