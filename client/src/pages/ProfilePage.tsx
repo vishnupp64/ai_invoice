@@ -27,8 +27,13 @@ export default function ProfilePage() {
   });
 
   async function onSubmit(values: FormValues) {
-    await api.put("/me", values);
-    toast.success("Profile updated. Refresh to see the latest name.");
+    try {
+      await api.put("/me", values);
+      toast.success("Profile updated. Refresh to see the latest name.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Update failed";
+      toast.error(msg);
+    }
   }
 
   return (

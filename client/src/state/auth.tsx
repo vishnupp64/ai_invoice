@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { api, setAuthToken } from "../lib/api";
+import { api, registerGlobalLogout, setAuthToken } from "../lib/api";
 
 type AuthUser = {
   id: string;
@@ -26,17 +26,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthToken(token);
   }, [token]);
 
-  async function refreshMe() {
-    if (!token) {
+  async function fetchMe(authToken: string | null) {
+    if (!authToken) {
       setUser(null);
-      return;
+      return null;
     }
     const res = await api.get<{ user: AuthUser }>("/me");
     setUser(res.data.user);
+    return res.data.user;
   }
 
   useEffect(() => {
-    refreshMe().catch(() => {
+    fetchMe(token).catch(() => {
       setToken(null);
       localStorage.removeItem(STORAGE_KEY);
       setUser(null);
@@ -45,15 +46,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function login(newToken: string) {
     localStorage.setItem(STORAGE_KEY, newToken);
+    setAuthToken(newToken);
     setToken(newToken);
-    await refreshMe();
+    try {
+      await fetchMe(newToken);
+    } catch (err) {
+      localStorage.removeItem(STORAGE_KEY);
+      setAuthToken(null);
+      setToken(null);
+      setUser(null);
+      throw err;
+    }
   }
 
   function logout() {
     localStorage.removeItem(STORAGE_KEY);
+    setAuthToken(null);
     setToken(null);
     setUser(null);
   }
+
+  useEffect(() => {
+    registerGlobalLogout(logout);
+  }, []);
 
   const value = useMemo<AuthContextValue>(() => ({ token, user, login, logout }), [token, user]);
 

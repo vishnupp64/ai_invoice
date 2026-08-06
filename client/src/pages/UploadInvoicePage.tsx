@@ -53,15 +53,16 @@ export default function UploadInvoicePage() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await api.post<ExtractionResponse>("/invoices/extract", form, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+      const res = await api.post<ExtractionResponse>("/invoices/extract", form);
       setExtraction(res.data);
       if (res.data.duplicate_invoice_id) {
         toast("Duplicate detected (same file). You can still save as a new invoice if you want.");
       } else {
         toast.success("Extraction completed");
       }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Extraction failed";
+      toast.error(msg);
     } finally {
       setExtracting(false);
     }
@@ -79,6 +80,9 @@ export default function UploadInvoicePage() {
       });
       toast.success("Saved");
       navigate(`/invoices/${res.data.id}`);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Save failed";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

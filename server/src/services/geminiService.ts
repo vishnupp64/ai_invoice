@@ -1,9 +1,6 @@
 import fs from "fs/promises";
-import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env";
 import { HttpError } from "../utils/httpError";
-
-const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
 export type ExtractedInvoice = {
   vendor_name: string | null;
@@ -116,6 +113,103 @@ function extractJson(text: string) {
   return text.slice(start, end + 1);
 }
 
+const GEMINI_MODEL = "gemini-flash-latest";
+const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models`;
+
+function mapGoogleError(err: any): HttpError {
+  const code = err?.code ?? err?.response?.status ?? 0;
+  const status = err?.status ?? err?.response?.data?.error?.status;
+  const rawMessage =
+    err?.message ??
+    err?.response?.data?.error?.message ??
+    "Failed to call Gemini API";
+
+  if (status === "RESOURCE_EXHAUSTED" || code === 429) {
+    return new HttpError(
+      429,
+      "AI rate limit or quota exceeded. Please wait a minute and try again, or check your billing in Google AI Studio."
+    );
+  }
+  if (
+    status === "UNAUTHENTICATED" ||
+    status === "PERMISSION_DENIED" ||
+    code === 401 ||
+    code === 403
+  ) {
+    return new HttpError(
+      401,
+      "Gemini API key is invalid or has no access. Please check GEMINI_API_KEY in server/.env."
+    );
+  }
+  if (code === 404 || String(rawMessage).includes("no longer available")) {
+    return new HttpError(502, `AI model not available. ${rawMessage}`);
+  }
+  return new HttpError(502, `AI service error: ${rawMessage}`);
+}
+
+async function callGeminiREST(params: {
+  prompt: string;
+  base64: string;
+  mimeType: string;
+}): Promise<string> {
+  const url = `${API_ENDPOINT}/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: params.prompt },
+          {
+            inline_data: {
+              mime_type: params.mimeType,
+              data: params.base64
+            }
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0
+    }
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  } catch (err: any) {
+    throw new HttpError(502, `Network error calling Gemini: ${err?.message || err}`);
+  }
+
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new HttpError(502, "Gemini returned non-JSON response");
+  }
+
+  if (!res.ok) {
+    const err = data?.error || {};
+    throw mapGoogleError({
+      code: err.code ?? res.status,
+      status: err.status,
+      message: err.message ?? text.slice(0, 300)
+    });
+  }
+
+  const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof reply !== "string") {
+    throw new HttpError(502, "Gemini response missing text content");
+  }
+  return reply;
+}
+
 export async function extractInvoiceFromFile(params: {
   filePath: string;
   mimeType: string;
@@ -123,45 +217,45 @@ export async function extractInvoiceFromFile(params: {
   const buffer = await fs.readFile(params.filePath);
   const base64 = buffer.toString("base64");
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: buildPrompt() },
-          { inlineData: { data: base64, mimeType: params.mimeType } }
-        ]
-      }
-    ],
-    config: {
-      responseMimeType: "application/json",
-      temperature: 0
-    }
-  });
+  let responseText: string;
+  try {
+    responseText = await callGeminiREST({
+      prompt: buildPrompt(),
+      base64,
+      mimeType: params.mimeType
+    });
+  } catch (err: any) {
+    if (err instanceof HttpError) throw err;
+    throw mapGoogleError(err);
+  }
 
-  const jsonText = extractJson(response.text ?? "");
-  const data = JSON.parse(jsonText) as ExtractedInvoice;
+  const jsonText = extractJson(responseText);
+  let data: ExtractedInvoice;
+  try {
+    data = JSON.parse(jsonText) as ExtractedInvoice;
+  } catch {
+    throw new HttpError(502, "Gemini returned invalid JSON");
+  }
 
-  const confidenceRes = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: buildConfidencePrompt() },
-          { inlineData: { data: base64, mimeType: params.mimeType } }
-        ]
-      }
-    ],
-    config: {
-      responseMimeType: "application/json",
-      temperature: 0
-    }
-  });
+  let confidenceText: string;
+  try {
+    confidenceText = await callGeminiREST({
+      prompt: buildConfidencePrompt(),
+      base64,
+      mimeType: params.mimeType
+    });
+  } catch (err: any) {
+    if (err instanceof HttpError) throw err;
+    throw mapGoogleError(err);
+  }
 
-  const confidenceJson = extractJson(confidenceRes.text ?? "");
-  const confidence = JSON.parse(confidenceJson) as Record<string, number | null>;
+  const confidenceJson = extractJson(confidenceText);
+  let confidence: Record<string, number | null> | null;
+  try {
+    confidence = JSON.parse(confidenceJson) as Record<string, number | null>;
+  } catch {
+    confidence = null;
+  }
 
   return { data, confidence };
 }

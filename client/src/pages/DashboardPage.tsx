@@ -71,9 +71,14 @@ export default function DashboardPage() {
   async function deleteInvoice(id: string) {
     const ok = window.confirm("Delete this invoice?");
     if (!ok) return;
-    await api.delete(`/invoices/${id}`);
-    toast.success("Deleted");
-    await fetchAll();
+    try {
+      await api.delete(`/invoices/${id}`);
+      toast.success("Deleted");
+      await fetchAll();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Delete failed";
+      toast.error(msg);
+    }
   }
 
   function downloadCsv() {

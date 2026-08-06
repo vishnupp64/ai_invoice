@@ -66,6 +66,9 @@ export default function EditInvoicePage() {
       await api.put(`/invoices/${id}`, values);
       toast.success("Updated");
       navigate(`/invoices/${id}`);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Update failed";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

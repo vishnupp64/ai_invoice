@@ -26,10 +26,15 @@ export default function LoginPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   async function onSubmit(values: FormValues) {
-    const res = await api.post<{ token: string }>("/auth/login", values);
-    await login(res.data.token);
-    toast.success("Welcome back");
-    navigate("/");
+    try {
+      const res = await api.post<{ token: string }>("/auth/login", values);
+      await login(res.data.token);
+      toast.success("Welcome back");
+      navigate("/");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Login failed";
+      toast.error(msg);
+    }
   }
 
   return (

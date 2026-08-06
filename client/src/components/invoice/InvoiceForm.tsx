@@ -6,12 +6,17 @@ import Input from "../ui/Input";
 import Card from "../ui/Card";
 import type { ConfidenceMap, ExtractedInvoice } from "../../types/invoice";
 
+const numOrNull = z.preprocess(
+  (v) => (typeof v === "number" && Number.isNaN(v) ? null : v),
+  z.number().nullable()
+);
+
 const itemSchema = z.object({
   description: z.string().nullable(),
-  quantity: z.number().nullable(),
-  unit_price: z.number().nullable(),
-  tax: z.number().nullable(),
-  amount: z.number().nullable()
+  quantity: numOrNull,
+  unit_price: numOrNull,
+  tax: numOrNull,
+  amount: numOrNull
 });
 
 const invoiceSchema = z.object({
@@ -20,11 +25,11 @@ const invoiceSchema = z.object({
   invoice_date: z.string().nullable(),
   due_date: z.string().nullable(),
   currency: z.string().nullable(),
-  subtotal: z.number().nullable(),
-  tax: z.number().nullable(),
-  discount: z.number().nullable(),
-  shipping: z.number().nullable(),
-  total: z.number().nullable(),
+  subtotal: numOrNull,
+  tax: numOrNull,
+  discount: numOrNull,
+  shipping: numOrNull,
+  total: numOrNull,
   payment_method: z.string().nullable(),
   gst_number: z.string().nullable(),
   customer_name: z.string().nullable(),

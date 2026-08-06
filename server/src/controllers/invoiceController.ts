@@ -11,6 +11,17 @@ import { decimalToNumber } from "../utils/decimal";
 import { parseIsoDate, toIsoDate } from "../utils/date";
 import { toCsv } from "../utils/csv";
 
+// Query params arrive as strings; treat empty strings as "not provided".
+const optionalQueryNumber = (min?: number, max?: number) => {
+  let schema: z.ZodNumber = z.coerce.number();
+  if (min !== undefined) schema = schema.min(min);
+  if (max !== undefined) schema = schema.max(max);
+  return z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    schema.optional()
+  );
+};
+
 const itemSchema = z.object({
   description: z.string().nullable(),
   quantity: z.number().nullable(),
@@ -38,7 +49,17 @@ const invoiceBodySchema = z.object({
   items: z.array(itemSchema),
   original_file: z.string().optional(),
   source_hash: z.string().nullable().optional(),
-  ai_confidence: z.record(z.number().nullable()).nullable().optional()
+  ai_confidence: z
+    .record(
+      z
+        .object({
+          value: z.union([z.string(), z.number()]).nullable(),
+          confidence: z.number().nullable()
+        })
+        .nullable()
+    )
+    .nullable()
+    .optional()
 });
 
 export async function extract(req: Request, res: Response) {
@@ -129,10 +150,10 @@ export async function list(req: Request, res: Response) {
     pageSize: z.coerce.number().min(1).max(100).default(10),
     search: z.string().optional(),
     vendor: z.string().optional(),
-    month: z.coerce.number().min(1).max(12).optional(),
-    year: z.coerce.number().min(2000).max(2100).optional(),
-    minAmount: z.coerce.number().optional(),
-    maxAmount: z.coerce.number().optional()
+    month: optionalQueryNumber(1, 12),
+    year: optionalQueryNumber(2000, 2100),
+    minAmount: optionalQueryNumber(),
+    maxAmount: optionalQueryNumber()
   });
 
   const q = querySchema.parse(req.query);
@@ -444,7 +465,7 @@ export async function statsMonthly(req: Request, res: Response) {
   const userId = req.userId;
   if (!userId) throw new HttpError(401, "Unauthorized");
 
-  const year = z.coerce.number().min(2000).max(2100).optional().parse(req.query.year);
+  const year = optionalQueryNumber(2000, 2100).parse(req.query.year);
   const y = year ?? new Date().getFullYear();
   const start = new Date(Date.UTC(y, 0, 1));
   const end = new Date(Date.UTC(y + 1, 0, 1));

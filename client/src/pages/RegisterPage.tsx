@@ -27,10 +27,15 @@ export default function RegisterPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   async function onSubmit(values: FormValues) {
-    const res = await api.post<{ token: string }>("/auth/register", values);
-    await login(res.data.token);
-    toast.success("Account created");
-    navigate("/");
+    try {
+      const res = await api.post<{ token: string }>("/auth/register", values);
+      await login(res.data.token);
+      toast.success("Account created");
+      navigate("/");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Registration failed";
+      toast.error(msg);
+    }
   }
 
   return (
