@@ -10,7 +10,7 @@ Full-stack web app to upload invoices/receipts (JPG/PNG/JPEG/PDF), extract struc
 - ORM: Prisma
 - Auth: JWT
 - Uploads: Multer
-- AI: Google Gen AI SDK (`@google/genai`)
+- AI: Google Gemini REST API
 
 ## Prerequisites
 
@@ -48,17 +48,18 @@ docker compose up -d
 
 ## 3) Install dependencies
 
-From the repo root:
+Server and client are now independent projects. Install each:
 
 ```bash
-npm install
+npm install --prefix client
+npm install --prefix server
 ```
 
 ## 4) Prisma setup
 
 ```bash
-npm run prisma:generate -w server
-npm run prisma:migrate -w server
+npm run prisma:generate --prefix server
+npm run prisma:migrate --prefix server
 ```
 
 ## 5) Run the app

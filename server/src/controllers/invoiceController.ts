@@ -53,7 +53,7 @@ const invoiceBodySchema = z.object({
     .record(
       z
         .object({
-          value: z.union([z.string(), z.number()]).nullable(),
+          value: z.any().nullable(),
           confidence: z.number().nullable()
         })
         .nullable()
