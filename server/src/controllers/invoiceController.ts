@@ -101,6 +101,14 @@ export async function create(req: Request, res: Response) {
   const originalFile = body.original_file;
   if (!originalFile) throw new HttpError(400, "original_file is required");
 
+  if (body.source_hash) {
+    const existing = await prisma.invoice.findFirst({
+      where: { userId, sourceHash: body.source_hash },
+      select: { id: true }
+    });
+    if (existing) throw new HttpError(409, "Duplicate invoice. This file has already been saved.");
+  }
+
   const invoice = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const created = await tx.invoice.create({
       data: {
@@ -328,18 +336,29 @@ export async function remove(req: Request, res: Response) {
   res.json({ ok: true });
 }
 
-export async function download(req: Request, res: Response) {
-  const userId = req.userId;
-  if (!userId) throw new HttpError(401, "Unauthorized");
-
-  const id = req.params.id;
+async function getOriginalFile(userId: string, id: string) {
   const invoice = await prisma.invoice.findFirst({
     where: { id, userId },
     select: { originalFile: true }
   });
   if (!invoice) throw new HttpError(404, "Invoice not found");
+  return path.join(process.cwd(), invoice.originalFile);
+}
 
-  const abs = path.join(process.cwd(), invoice.originalFile);
+export async function view(req: Request, res: Response) {
+  const userId = req.userId;
+  if (!userId) throw new HttpError(401, "Unauthorized");
+
+  const abs = await getOriginalFile(userId, req.params.id);
+  res.setHeader("Content-Disposition", 'inline');
+  res.sendFile(abs);
+}
+
+export async function download(req: Request, res: Response) {
+  const userId = req.userId;
+  if (!userId) throw new HttpError(401, "Unauthorized");
+
+  const abs = await getOriginalFile(userId, req.params.id);
   res.download(abs);
 }
 

@@ -9,7 +9,8 @@ import {
   remove,
   statsMonthly,
   statsSummary,
-  update
+  update,
+  view
 } from "../controllers/invoiceController";
 import { requireAuth } from "../middlewares/auth";
 import { upload } from "../middlewares/upload";
@@ -31,6 +32,7 @@ router.post("/", requireAuth, (req, res, next) => create(req, res).catch(next));
 router.get("/", requireAuth, (req, res, next) => list(req, res).catch(next));
 
 router.get("/:id/download", requireAuth, (req, res, next) => download(req, res).catch(next));
+router.get("/:id/view", requireAuth, (req, res, next) => view(req, res).catch(next));
 router.get("/:id", requireAuth, (req, res, next) => getOne(req, res).catch(next));
 router.put("/:id", requireAuth, (req, res, next) => update(req, res).catch(next));
 router.delete("/:id", requireAuth, (req, res, next) => remove(req, res).catch(next));

@@ -42,6 +42,24 @@ export default function InvoiceDetailsPage() {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [showImage, setShowImage] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  async function toggleImage() {
+    if (!invoice) return;
+    if (imageUrl) {
+      setShowImage(false);
+      return;
+    }
+    setShowImage(true);
+    try {
+      const res = await api.get<Blob>(`/invoices/${invoice.id}/view`, { responseType: "blob" });
+      setImageUrl(URL.createObjectURL(res.data));
+    } catch (e) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.error(err?.response?.data?.message ?? "Failed to load image");
+    }
+  }
 
   async function load() {
     if (!id) return;
@@ -58,9 +76,25 @@ export default function InvoiceDetailsPage() {
     load().catch((e) => toast.error(e?.response?.data?.message ?? "Failed to load invoice"));
   }, [id]);
 
-  function downloadOriginal() {
+  async function downloadOriginal() {
     if (!invoice) return;
-    window.open(`${api.defaults.baseURL}/invoices/${invoice.id}/download`, "_blank");
+    try {
+      const res = await api.get<Blob>(`/invoices/${invoice.id}/download`, {
+        responseType: "blob"
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      const name = invoice.original_file?.split("/").pop() ?? "invoice";
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.error(err?.response?.data?.message ?? "Failed to download file");
+    }
   }
 
   if (loading) {
@@ -89,6 +123,9 @@ export default function InvoiceDetailsPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" onClick={toggleImage}>
+            {showImage ? "Hide image" : "View image"}
+          </Button>
           <Button variant="secondary" onClick={downloadOriginal}>
             Download original
           </Button>
@@ -97,6 +134,17 @@ export default function InvoiceDetailsPage() {
           </Link>
         </div>
       </div>
+
+      {showImage && imageUrl && (
+        <Card>
+          <div className="text-sm font-medium">Original image</div>
+          <img
+            className="mt-3 max-h-[640px] w-full rounded-md object-contain"
+            src={imageUrl}
+            alt={invoice.vendor_name ?? "Invoice"}
+          />
+        </Card>
+      )}
 
       <Card>
         <div className="grid gap-3 md:grid-cols-3">

@@ -54,12 +54,13 @@ export default function UploadInvoicePage() {
       const form = new FormData();
       form.append("file", file);
       const res = await api.post<ExtractionResponse>("/invoices/extract", form);
-      setExtraction(res.data);
       if (res.data.duplicate_invoice_id) {
-        toast("Duplicate detected (same file). You can still save as a new invoice if you want.");
-      } else {
-        toast.success("Extraction completed");
+        toast("Duplicate invoice detected. Opening the existing invoice.");
+        navigate(`/invoices/${res.data.duplicate_invoice_id}`);
+        return;
       }
+      setExtraction(res.data);
+      toast.success("Extraction completed");
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? "Extraction failed";
       toast.error(msg);
